@@ -1,0 +1,18 @@
+[package]
+name = "file"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
+aws-config = { version = "1.10.1", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1.141.0"
+shared = { path = "../../libs/shared" }
+aws-sdk-cloudfront = "1.126.0"
+cloudfront_sign = "0.4.1"
+aws-sdk-s3-transfer-manager = "0.2.0"
+axum = "0.8.9"
+serde = "1.0.229"
+mime_guess = "2.0.5"
+url = "2.5.8"
+anyhow = "1.0.104"
