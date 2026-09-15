@@ -42,7 +42,7 @@ impl UploadService {
     /// # Returns
     /// - `Ok(GenerateUploadUrlResponse)`: Contains `upload_url`, the presigned URL to `PUT` the file to,
     ///   and `url`, the resulting public URL of the file once uploaded.
-    /// - `Err(AppError)`: An error if URL generation fails due to configuration issues, invalid inputs,
+    /// - `Err(ServiceError)`: An error if URL generation fails due to configuration issues, invalid inputs,
     ///   or unexpected failures in the presigning process.
     ///
     /// # Errors
@@ -129,12 +129,12 @@ impl UploadService {
     ///
     /// # Returns
     /// - `Ok(String)`: The signed CDN URL or presigned S3 URL, depending on configuration.
-    /// - `Err(AppError)`: If `url` cannot be parsed, the CDN private key file cannot be
+    /// - `Err(ServiceError)`: If `url` cannot be parsed, the CDN private key file cannot be
     ///   read, signing fails, or the presigning/S3 call fails.
     ///
     /// # Notes
     /// - Errors are not surfaced with detail to callers: any underlying failure is logged
-    ///   and collapsed to `AppError::ServerError` by the `From<anyhow::Error> for AppError`
+    ///   and collapsed to `ServiceError::ServerError` by the `From<anyhow::Error> for ServiceError`
     ///   conversion.
     pub async fn generate_url(&self, url: &str, expires_in_seconds: u64) -> ServiceResult<String> {
         let file = dto::object::FileObject::from_url(url)?;

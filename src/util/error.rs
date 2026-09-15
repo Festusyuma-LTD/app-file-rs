@@ -1,3 +1,3 @@
-use shared::error::AppError;
+use shared::error::ServiceError;
 
-pub type ServiceResult<T> = Result<T, AppError>;
+pub type ServiceResult<T> = Result<T, ServiceError>;
