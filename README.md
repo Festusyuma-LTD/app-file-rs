@@ -31,8 +31,20 @@ let state = Arc::new(file::state::ServiceState {
     disabled_routes: Default::default(),
 });
 
-let app = axum::Router::new().nest("/file", file::app(state));
+// `file::app` returns a `utoipa_axum::router::OpenApiRouter`, so its OpenAPI paths/schemas
+// can be merged into the rest of the app's spec before splitting into a plain `axum::Router`.
+use utoipa_axum::router::OpenApiRouter;
+
+let (router, openapi) = OpenApiRouter::new()
+    .nest("/file", file::app(state))
+    .split_for_parts();
+
+let app: axum::Router = router; // serve `openapi` (e.g. via utoipa-swagger-ui) however you like
 ```
+
+If you don't care about the OpenAPI spec, `OpenApiRouter<S>` also converts directly into
+`axum::Router<S>` via `Into`, so `axum::Router::new().nest("/file", file::app(state).into())`
+works too.
 
 ## Routes
 
@@ -53,6 +65,9 @@ Mounted under whatever prefix the parent app nests `file::app(state)` at, then u
 `mimetype` and `expiration` are optional (`expiration` defaults to 60 seconds).
 `GenerateUploadUrlResponse` is `{ "upload_url": "...", "url": "..." }` — `upload_url` is
 the presigned URL to `PUT` the file to, `url` the resulting public URL once uploaded.
+
+Each handler carries a `#[utoipa::path]` annotation, so the routes and their request/response
+schemas show up in the `utoipa::openapi::OpenApi` returned alongside the router.
 
 Individual routes can be disabled per-app via `DisabledRoutes`/`Route` (see
 `util::routes`) — a disabled route responds `403`.
