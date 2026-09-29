@@ -67,7 +67,7 @@ impl UploadService {
     ///
     /// match upload_service.generate_upload_url(payload).await {
     ///     Ok(response) => println!("Presigned URL: {}", response.upload_url),
-    ///     Err(e) => eprintln!("Error generating upload URL: {}", e),
+    ///     Err(e) => eprintln!("Error generating upload URL: {:?}", e),
     /// }
     /// # }
     /// ```
@@ -102,7 +102,7 @@ impl UploadService {
             .client
             .put_object()
             .bucket(&self.config.bucket)
-            .key(file.key)
+            .key(&file.key)
             .content_type(file.mimetype)
             .presigned(presigning_config)
             .await
@@ -110,7 +110,7 @@ impl UploadService {
 
         Ok(dto::upload::GenerateUploadUrlResponse {
             upload_url: presigned_put.uri().into(),
-            url: file.url.unwrap_or(String::new()),
+            url: format!("/{}", file.key),
         })
     }
 
@@ -136,11 +136,9 @@ impl UploadService {
     /// - Errors are not surfaced with detail to callers: any underlying failure is logged
     ///   and collapsed to `ServiceError::ServerError` by the `From<anyhow::Error> for ServiceError`
     ///   conversion.
-    pub async fn generate_url(&self, url: &str, expires_in_seconds: u64) -> ServiceResult<String> {
-        let file = dto::object::FileObject::from_url(url)?;
-
+    pub async fn generate_url(&self, key: &str, expires_in_seconds: u64) -> ServiceResult<String> {
         let url: String = if let Some(cdn_key) = &self.config.cdn_key {
-            let resource_url = format!("{}/{}", &self.config.base_url, &file.key);
+            let resource_url = format!("{}/{}", &self.config.base_url, key.trim_matches('/'));
 
             let private_key = fs::read_to_string(&cdn_key.private_key_path)
                 .await
@@ -173,7 +171,7 @@ impl UploadService {
                 .client
                 .get_object()
                 .bucket(&self.config.bucket)
-                .key(file.key)
+                .key(key)
                 .presigned(presigning_config)
                 .await
                 .map_err(Error::from)?;

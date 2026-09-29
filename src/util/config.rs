@@ -2,6 +2,7 @@ use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct CdnKey {
     pub key_id: String,
     pub private_key_path: String,
