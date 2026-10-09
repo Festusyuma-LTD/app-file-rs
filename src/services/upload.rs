@@ -202,4 +202,51 @@ impl UploadService {
 
         Ok(bytes.to_vec())
     }
+
+    /// Uploads `body` to the configured bucket under a key derived from `name`, the same way
+    /// [`generate_upload_url`](Self::generate_upload_url) derives one (a timestamp is appended
+    /// before the extension), and returns the stored file's URL path (`/{key}`).
+    ///
+    /// # Errors
+    /// Fails if the S3 request fails. As with the other methods, the underlying failure is
+    /// collapsed to `ServiceError::ServerError`.
+    pub async fn upload(
+        &self,
+        name: &str,
+        body: Vec<u8>,
+        mimetype: Option<&str>,
+    ) -> ServiceResult<String> {
+        let file = dto::object::FileObject::from_filename(name, mimetype);
+
+        self.config
+            .client
+            .put_object()
+            .bucket(&self.config.bucket)
+            .key(&file.key)
+            .content_type(file.mimetype)
+            .body(body.into())
+            .send()
+            .await
+            .map_err(Error::from)?;
+
+        Ok(format!("/{}", file.key))
+    }
+
+    /// Deletes the object stored under `key` from the configured bucket.
+    ///
+    /// # Errors
+    /// Fails if the S3 request fails. As with the other methods, the underlying failure is
+    /// collapsed to `ServiceError::ServerError`.
+    pub async fn delete(&self, key: &str) -> ServiceResult<()> {
+        self.config
+            .client
+            .delete_object()
+            .bucket(&self.config.bucket)
+            .key(key.trim_matches('/'))
+            .send()
+            .await
+            .map_err(Error::from)?;
+
+        Ok(())
+    }
 }
