@@ -181,4 +181,25 @@ impl UploadService {
 
         Ok(url)
     }
+
+    /// Downloads the object stored under `key` from the configured bucket and returns its bytes.
+    ///
+    /// # Errors
+    /// Fails if the object does not exist, the S3 request fails, or the body stream cannot be read.
+    /// As with the other methods, the underlying failure is collapsed to `ServiceError::ServerError`.
+    pub async fn download(&self, key: &str) -> ServiceResult<Vec<u8>> {
+        let object = self
+            .config
+            .client
+            .get_object()
+            .bucket(&self.config.bucket)
+            .key(key.trim_matches('/'))
+            .send()
+            .await
+            .map_err(Error::from)?;
+
+        let bytes = object.body.collect().await.map_err(Error::from)?;
+
+        Ok(bytes.to_vec())
+    }
 }
