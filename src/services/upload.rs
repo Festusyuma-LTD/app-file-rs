@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::fs;
+use tokio::io::{self, AsyncWrite};
 
 /// Issues presigned/signed URLs for uploading to and reading from the configured
 /// object storage bucket (and, optionally, a CloudFront-fronted CDN).
@@ -182,12 +183,17 @@ impl UploadService {
         Ok(url)
     }
 
-    /// Downloads the object stored under `key` from the configured bucket and returns its bytes.
+    /// Streams the object stored under `key` from the configured bucket into `writer`,
+    /// returning the number of bytes copied.
     ///
     /// # Errors
-    /// Fails if the object does not exist, the S3 request fails, or the body stream cannot be read.
-    /// As with the other methods, the underlying failure is collapsed to `ServiceError::ServerError`.
-    pub async fn download(&self, key: &str) -> ServiceResult<Vec<u8>> {
+    /// Fails if the object does not exist, the S3 request fails, or the body stream cannot be
+    /// read or written to `writer`. As with the other methods, the underlying failure is
+    /// collapsed to `ServiceError::ServerError`.
+    pub async fn download<W>(&self, key: &str, writer: &mut W) -> ServiceResult<u64>
+    where
+        W: AsyncWrite + Unpin + ?Sized,
+    {
         let object = self
             .config
             .client
@@ -198,9 +204,10 @@ impl UploadService {
             .await
             .map_err(Error::from)?;
 
-        let bytes = object.body.collect().await.map_err(Error::from)?;
+        let mut reader = object.body.into_async_read();
+        let copied = io::copy(&mut reader, writer).await.map_err(Error::from)?;
 
-        Ok(bytes.to_vec())
+        Ok(copied)
     }
 
     /// Uploads `body` to the configured bucket under a key derived from `name`, the same way
