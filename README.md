@@ -1,14 +1,27 @@
 # file
 
-Library crate for issuing presigned/signed URLs against an S3-compatible object storage
-bucket, optionally fronted by a CloudFront CDN — for clients that need to upload/download
-files directly to/from storage without proxying bytes through the app server.
+Library crate for file storage on an S3-compatible object storage bucket, optionally
+fronted by a CloudFront CDN. It issues presigned/signed URLs for clients that need to
+upload/download files directly to/from storage without proxying bytes through the app
+server, and also lets the server read and write objects itself.
 
 ## What it does
 
 - **Uploads**: generates a presigned S3 `PUT` URL a client can upload directly to.
 - **Reads**: generates a time-limited URL for reading a previously uploaded file — a
   CloudFront signed URL if a CDN key is configured, otherwise a presigned S3 `GET` URL.
+- **Server-side access** (on `UploadService`, no routes):
+  - `upload(name, body, mimetype)` stores bytes under a key derived from `name` the same
+    way presigned uploads are, and returns the file's URL path (`/{key}`).
+  - `download(key, writer)` streams an object into any `tokio::io::AsyncWrite` (a file,
+    a buffer, a socket, ...) without loading it into memory, and returns the number of
+    bytes copied.
+  - `delete(key)` removes an object.
+
+```rust
+let mut file = tokio::fs::File::create("/tmp/report.pdf").await?;
+upload_service.download("reports/report.pdf", &mut file).await?;
+```
 
 ## Wiring it into an app
 
@@ -69,8 +82,14 @@ the presigned URL to `PUT` the file to, `url` the resulting public URL once uplo
 Each handler carries a `#[utoipa::path]` annotation, so the routes and their request/response
 schemas show up in the `utoipa::openapi::OpenApi` returned alongside the router.
 
-Individual routes can be disabled per-app via `DisabledRoutes`/`Route` (see
-`util::routes`) — a disabled route responds `403`.
+Individual routes can be disabled per-app via `DisabledRoutes` — a disabled route
+responds `403`:
+
+```rust
+use file::{DisabledRoutes, Route};
+
+let disabled_routes = DisabledRoutes::new(DisabledRoutes::builder().disable(Route::Url));
+```
 
 > **Note:** `GET /upload/url` currently ignores the request entirely and always returns a
 > signed URL for the fixed key `public/age.txt` with a 300s expiration
@@ -83,7 +102,7 @@ Built via `file::config::ConfigBuilder`:
 
 | Method       | Required | Description                                                          |
 | ------------ | -------- | ---------------------------------------------------------------------|
-| `.region()`  | yes      | AWS region for the S3 client.                                        |
+| `.region()`  | yes      | Fallback AWS region for the S3 client, used when the environment doesn't set one (`AWS_REGION`, profile, ...). |
 | `.bucket()`  | yes      | S3 bucket name.                                                      |
 | `.base_url()`| yes      | Public base URL files are served from (CDN or bucket origin).        |
 | `.cdn_key()` | no       | CloudFront key pair ID + path to the private key PEM, for signed CDN reads. |
